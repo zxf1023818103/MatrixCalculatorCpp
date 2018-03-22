@@ -25,17 +25,14 @@ public:
 
 	/// <summary>从已存在的矩阵拷贝构造一个新矩阵。</summary>
 	/// <param name="mat">待拷贝构造的矩阵。</param>
-	matrix<T>(const matrix<T> &mat) {
-		data_ = mat.data_;
-		on_data_changed();
-	}
+	matrix<T>(const matrix<T> &mat)
+		: data_(mat.data_) {}
 
 	/// <summary>构造一个指定列数和行数的空矩阵。</summary>
 	/// <param name="cols">列数。</param>
 	/// <param name="rows">行数。</param>
 	matrix<T>(const size_t cols, const size_t rows) {
 		resize(cols, rows);
-		on_data_changed();
 	}
 
 	/// <summary>从初始化列表构造矩阵。</summary>
@@ -53,7 +50,6 @@ public:
 				data_[i][j++] = element;
 			i++;
 		}
-		on_data_changed();
 	}
 
 	/// <summary>从给定的<c>std::vector&lt;T&gt;</c>容器中构造矩阵。</summary>
@@ -86,7 +82,6 @@ public:
 		data_.resize(rows);
 		for (auto i = old_rows; i < rows; i++)
 			data_[i].resize(cols());
-		on_data_changed();
 	}
 
 	/// <summary>设置矩阵的列数。</summary>
@@ -94,7 +89,6 @@ public:
 	void setcols(size_t cols) {
 		for (size_t i = 0; i < data_.size(); i++)
 			data_[i].resize(cols);
-		on_data_changed();
 	}
 
 	/// <summary>重新调整矩阵的大小。</summary>
@@ -107,14 +101,12 @@ public:
 		data_.resize(rows);
 		for (; i < this->rows(); i++)
 			data_[i].resize(cols);
-		on_data_changed();
 	}
 
 	/// <summary>将矩阵元素清零。</summary>
 	void clear() {
 		for (size_t i = 0; i < data_.size(); i++)
 			data_[i].clear();
-		on_data_changed();
 	}
 
 	/// <summary>指示矩阵是否为空。</summary>
@@ -128,7 +120,6 @@ public:
 	/// <returns>返回一个存储该行的元素的对象。</returns>
 	auto& operator[](const size_t pos) {
 		return data_[pos];
-		on_data_changed();	// TODO: 下标返回自定义类型以检测更改。
 	}
 
 	/// <summary>返回矩阵指定的行（只读）。</summary>
@@ -204,7 +195,6 @@ public:
 		for (size_t i = 0; i < rows(); i++)
 			for (size_t j = 0; j < cols(); j++)
 				data_[i][j] += mat.data_[i][j];
-		on_data_changed();
 		return *this;
 	}
 
@@ -217,7 +207,6 @@ public:
 		for (size_t i = 0; i < mat.rows(); i++)
 			for (size_t j = 0; j < mat.cols(); j++)
 				data_[i][j] -= mat.data_[i][j];
-		on_data_changed();
 		return *this;
 	}
 
@@ -259,7 +248,8 @@ public:
 
 	/// <summary>返回矩阵的文本表示。列之间使用空格分隔，行之间使用回车分隔。</summary>
 	/// <returns>矩阵的文本表示，由数字、空格和回车组成的多行文本。</returns>
-	std::string to_string() const {
+	std::string to_string() {
+		update_element_texts();
 		std::string result;
 		for (size_t i = 0; i < rows(); i++)
 			for (size_t j = 0; j < cols(); j++) {
@@ -274,8 +264,10 @@ public:
 	/// <summary>输出由 to_string() 生成的文本到指定的输出流。</summary>
 	/// <param name="os">指定的标准输出流。</param>
 	/// <param name="mat">待输出的矩阵。</param>
-	friend std::ostream& operator<<(std::ostream &os, const matrix<T> &mat) {
-		os << mat.to_string();
+	friend std::ostream& operator<<(std::ostream &os, matrix<T> &mat) {
+		const std::ostream::sentry s(os);
+		if (s)
+			os.write(mat.to_string());
 		return os;
 	}
 
@@ -283,6 +275,9 @@ public:
 	/// <param name="os">指定的标准输入流。</param>
 	/// <param name="mat">待输入至的矩阵对象。</param>
 	friend std::istream& operator>>(std::istream &is, matrix<T> &mat) {
+		const std::istream::sentry s(is);
+		if (!s)
+			return is;
 		if (mat.empty()) {
 			std::vector<std::vector<T>> elements;
 			std::string line;
@@ -306,13 +301,12 @@ public:
 					mat[i][j] = element;
 				}
 		}
-		mat.on_data_changed();
 		return is;
 	}
 
 private:
-	/// <summary>当矩阵内数据发生更改时被调用。</summary>
-	void on_data_changed() {
+	/// <summary>更新矩阵文本。</summary>
+	void update_element_texts() {
 		// update text
 		element_texts_.resize(cols() * rows());
 		size_t cur = 0;
