@@ -19,6 +19,9 @@ class matrix {
 	/// <value>文本表示的矩阵元素的最大长度。</value>
 	size_t max_text_size_ = 0;
 
+	/// <value>指示文本是否发生更改。</value>
+	bool text_changed_ = false;
+
 public:
 	/// <summary>默认构造函数，构造一个空矩阵。</summary>
 	matrix<T>() {}
@@ -26,13 +29,16 @@ public:
 	/// <summary>从已存在的矩阵拷贝构造一个新矩阵。</summary>
 	/// <param name="mat">待拷贝构造的矩阵。</param>
 	matrix<T>(const matrix<T> &mat)
-		: data_(mat.data_) {}
+		: data_(mat.data_) {
+		text_changed_ = true;
+	}
 
 	/// <summary>构造一个指定列数和行数的空矩阵。</summary>
 	/// <param name="cols">列数。</param>
 	/// <param name="rows">行数。</param>
 	matrix<T>(const size_t cols, const size_t rows) {
 		resize(cols, rows);
+		text_changed_ = true;
 	}
 
 	/// <summary>从初始化列表构造矩阵。</summary>
@@ -50,17 +56,19 @@ public:
 				data_[i][j++] = element;
 			i++;
 		}
+		text_changed_ = true;
 	}
 
-	/// <summary>从给定的<c>std::vector&lt;T&gt;</c>容器中构造矩阵。</summary>
-	/// <param name="data">给定的<c>std::vector&lt;T&gt;</c>容器。</param>
-	explicit matrix<T>(const std::vector<std::vector<T>> &data) {
+	/// <summary>从给定的<c>std::vector</c>容器中构造矩阵。</summary>
+	/// <param name="data">给定的<c>std::vector</c>容器。</param>
+	matrix<T>(const std::vector<std::vector<T>> &data) {
 		this->data_ = data;
 		const size_t max_cols = std::max_element(this->data_.begin(), this->data_.end(),
 			[](auto a, auto b) {
 			return a.size() < b.size();
 		})->size();
 		setcols(max_cols);
+		text_changed_ = true;
 	}
 
 	/// <summary>获取矩阵的行数。</summary>
@@ -82,6 +90,7 @@ public:
 		data_.resize(rows);
 		for (auto i = old_rows; i < rows; i++)
 			data_[i].resize(cols());
+		text_changed_ = true;
 	}
 
 	/// <summary>设置矩阵的列数。</summary>
@@ -89,6 +98,7 @@ public:
 	void setcols(size_t cols) {
 		for (size_t i = 0; i < data_.size(); i++)
 			data_[i].resize(cols);
+		text_changed_ = true;
 	}
 
 	/// <summary>重新调整矩阵的大小。</summary>
@@ -101,12 +111,14 @@ public:
 		data_.resize(rows);
 		for (; i < this->rows(); i++)
 			data_[i].resize(cols);
+		text_changed_ = true;
 	}
 
 	/// <summary>将矩阵元素清零。</summary>
 	void clear() {
 		for (size_t i = 0; i < data_.size(); i++)
 			data_[i].clear();
+		text_changed_ = true;
 	}
 
 	/// <summary>指示矩阵是否为空。</summary>
@@ -119,6 +131,7 @@ public:
 	/// <param name="pos">行的下标。</param>
 	/// <returns>返回一个存储该行的元素的对象。</returns>
 	auto& operator[](const size_t pos) {
+		text_changed_ = true;
 		return data_[pos];
 	}
 
@@ -195,6 +208,7 @@ public:
 		for (size_t i = 0; i < rows(); i++)
 			for (size_t j = 0; j < cols(); j++)
 				data_[i][j] += mat.data_[i][j];
+		text_changed_ = true;
 		return *this;
 	}
 
@@ -207,6 +221,7 @@ public:
 		for (size_t i = 0; i < mat.rows(); i++)
 			for (size_t j = 0; j < mat.cols(); j++)
 				data_[i][j] -= mat.data_[i][j];
+		text_changed_ = true;
 		return *this;
 	}
 
@@ -216,6 +231,7 @@ public:
 	matrix<T>& operator*=(const matrix<T> &mat) {
 		const matrix<T> result = *this * mat;
 		*this = result;
+		text_changed_ = true;
 		return *this;
 	}
 
@@ -226,6 +242,7 @@ public:
 		for (size_t i = 0; i < rows(); i++)
 			for (size_t j = 0; j < cols(); j++)
 				data_[i][j] *= value;
+		text_changed_ = true;
 		return *this;
 	}
 
@@ -261,7 +278,7 @@ public:
 		return result;
 	}
 
-	/// <summary>输出由 to_string() 生成的文本到指定的输出流。</summary>
+	/// <summary>输出由<c>matrix::to_string()</c>生成的文本到指定的输出流。</summary>
 	/// <param name="os">指定的标准输出流。</param>
 	/// <param name="mat">待输出的矩阵。</param>
 	friend std::ostream& operator<<(std::ostream &os, matrix<T> &mat) {
@@ -271,7 +288,7 @@ public:
 		return os;
 	}
 
-	/// <summary>由指定的输入流读入文本生成矩阵，输入格式同 to_string 方法所生成的文本格式。</summary>
+	/// <summary>由指定的输入流读入文本生成矩阵，输入格式同<c>matrix::to_string()</c>方法所生成的文本格式。</summary>
 	/// <param name="os">指定的标准输入流。</param>
 	/// <param name="mat">待输入至的矩阵对象。</param>
 	friend std::istream& operator>>(std::istream &is, matrix<T> &mat) {
@@ -301,12 +318,15 @@ public:
 					mat[i][j] = element;
 				}
 		}
+		mat.text_changed_ = true;
 		return is;
 	}
 
 private:
 	/// <summary>更新矩阵文本。</summary>
 	void update_element_texts() {
+		if (!text_changed_)
+			return;
 		// update text
 		element_texts_.resize(cols() * rows());
 		size_t cur = 0;
@@ -317,5 +337,6 @@ private:
 			[](auto a, auto b) {
 			return a.size() < b.size();
 		})->size();
+		text_changed_ = false;
 	}
 };
